@@ -1,11 +1,7 @@
-import logging
-
 from mcp.server.fastmcp import FastMCP
 from shared.config import AGENT_HOST
 from shared.registry import AGENT_PORT
-from shared.vote_vocabulary import CANONICAL_VOTES, LEGACY_VOTE_INPUTS, normalize_specialist_vote
-
-logger = logging.getLogger(__name__)
+from shared.vote_vocabulary import validate_specialist_vote
 
 mcp = FastMCP("art-appraisal-tools", port=AGENT_PORT, host=AGENT_HOST)
 
@@ -21,22 +17,22 @@ def cast_vote(
     Cast your specialist vote for the final appraisal. Call this as your LAST action.
 
     Args:
-        recommendation: Verdict — AUTHENTICATE, VERIFY_FURTHER, or REJECT (same labels as synthesis
-            and eval tests). Legacy BUY/HOLD are still accepted and mapped to AUTHENTICATE / VERIFY_FURTHER.
+        recommendation: Verdict AUTHENTICATE, VERIFY_FURTHER, or REJECT (legacy BUY/HOLD
+            are accepted and mapped). An unrecognized value is rejected, not coerced.
         confidence: Your confidence from 0.0 (very uncertain) to 1.0 (certain).
         primary_reason: The single most important reason for your vote.
         secondary_reason: A supporting reason for your vote.
 
     Returns:
         Confirmed vote record.
+
+    Raises:
+        ValueError: recommendation or confidence is invalid (DP4: fail loud, no silent coercion).
     """
-    raw = (recommendation or "").strip().upper()
-    rec = normalize_specialist_vote(recommendation)
-    if raw and raw not in CANONICAL_VOTES and raw not in LEGACY_VOTE_INPUTS:
-        logger.warning("Invalid vote %r — normalized to %s", recommendation, rec)
+    rec = validate_specialist_vote(recommendation, confidence)
     return {
         "vote": rec,
-        "confidence": round(max(0.0, min(1.0, float(confidence))), 2),
+        "confidence": round(float(confidence), 2),
         "reasons": [primary_reason, secondary_reason],
         "status": "VOTE_RECORDED",
     }

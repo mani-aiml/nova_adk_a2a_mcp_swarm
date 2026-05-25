@@ -448,6 +448,7 @@ def main() -> None:
     for xml_name, label in [
         ("unit_tests.xml", "Unit Tests"),
         ("integration_tests.xml", "Integration Tests"),
+        ("adversarial_tests.xml", "Adversarial Tests"),
         ("trace_tests.xml", "Trace Quality Tests"),
     ]:
         suite = parse_junit_xml(results_dir / xml_name, label)

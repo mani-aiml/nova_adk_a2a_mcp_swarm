@@ -17,6 +17,7 @@ from opentelemetry import trace
 from orchestrator.agent import art_appraisal_pipeline
 from otel_setup import setup_otel_logging, otel_log, OTEL_LOG_PATH
 from shared.registry import SPECIALISTS, SPECIALIST_NAMES, SYNTHESIS
+from shared.input_guard import quarantine
 from display import (
     C, agent_label, colored_label, banner, ruler,
     print_agent_start, print_handoff, print_intermediate,
@@ -193,7 +194,7 @@ async def run_appraisal_chat() -> None:
             print("\nGoodbye!")
             break
 
-        message = types.Content(role="user", parts=[types.Part(text=user_input)])
+        message = types.Content(role="user", parts=[types.Part(text=quarantine(user_input))])
         otel_log(otel_logger, logging.INFO, "User message",
                  session_id=session.id, preview=user_input[:120])
 
