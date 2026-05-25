@@ -58,10 +58,37 @@ jobs:
           name: integration-test-results
           path: eval_results/integration_tests.xml
 
+  adversarial-tests:
+    name: Adversarial Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt pytest pyyaml
+
+      - name: Run adversarial suite
+        run: pytest evaluation/adversarial/ -v --tb=short --junitxml=eval_results/adversarial_tests.xml
+
+      - name: Attack Success Rate gate
+        run: python evaluation/adversarial/asr_runner.py --results-dir eval_results
+
+      - name: Upload adversarial test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: adversarial-test-results
+          path: eval_results/
+
   report:
     name: Evaluation Report
     runs-on: ubuntu-latest
-    needs: [unit-tests, integration-tests]
+    needs: [unit-tests, integration-tests, adversarial-tests]
     if: always()
     steps:
       - uses: actions/checkout@v4

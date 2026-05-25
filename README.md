@@ -101,7 +101,7 @@ multiagent systems with Google ADK, A2A, and MCP.
 | `part-1` | Part 1: Architecture & Swarm Voting | A2A services, MCP tools, parallel voting, OTEL, Docker, Bedrock Nova |
 | `part-1.v2` | Part 1.v2: Refactored for Scale | Config-driven registry, agent factory, uniform ports, Docker service-name routing, production considerations |
 | `part-2` | Part 2: Evaluation | Golden datasets, registry-driven pytest, LLM-as-judge (Nova), CI pipeline, HTML report |
-| `part-3` | Part 3: Red-Teaming *(coming soon)* | Prompt injection, vote manipulation |
+| `part-3` | Part 3: Red-Teaming | Five defense points (DP1-DP5), adversarial test suite, Attack Success Rate CI gate |
 | `part-4` | Part 4: Production Security *(coming soon)* | Auth, rate-limiting, secrets management |
 
 Checkout any tag to see the code at that stage:
@@ -109,6 +109,7 @@ Checkout any tag to see the code at that stage:
 git checkout part-1      # Original working swarm
 git checkout part-1.v2   # Refactored for scalability
 git checkout part-2      # Evaluation suite
+git checkout part-3      # Adversarial test suite
 ```
 
 ### What changed from `part-1` to `part-1.v2`
@@ -148,6 +149,7 @@ Details live in [evaluation/README.md](evaluation/README.md). Summary:
 | **2. Single-agent execution** | `adk eval` per `eval_package` | `evaluation/run_evals.sh` + `list_eval_packages.py`; goldens under `evaluation/golden/<package>/` | **CI matrix / shards**: split eval packages across parallel jobs so wall-clock time stays bounded (e.g. GitHub Actions `strategy.matrix` + a script that slices `list_eval_packages.py` output) |
 | **3. Multi-agent interaction** | Orchestrated A2A + synthesis | `adk eval orchestrator` on `evaluation/golden/swarm/trajectory_evalset.json` | More **curated** swarm scenarios; pairwise / n-wise for high-risk edges |
 | **4. Live / observability** | Real network, latency, errors | `evaluation/trace_eval/` against OTEL JSONL (`otel_logs/otel.log`) | Nightly soak, staging gates, SLO-style thresholds |
+| **E. Adversarial** | Red teaming per defense point: prompt injection, vote forgery, tool poisoning, consensus abuse | `pytest evaluation/adversarial` + `asr_runner.py` (also **CI**, ASR-gated) | Grow the attack corpus; track Attack Success Rate per defense point over time |
 
 ### Eval runner on the Docker network
 
@@ -171,6 +173,31 @@ docker compose --profile eval run --rm -e ADK_EVAL_CONFIG=/app/evaluation/test_c
 
 - **Shard / matrix (best practice):** partition `eval_package` names into disjoint sets and run **parallel CI jobs** (each job runs `adk eval` only for its shard). This is **orchestration**, not a pytest feature — see the Tier B row above.
 - Keep **Tier A** on every PR; move full **Tier B** or judge-heavy criteria to **nightly** or **pre-release** if cost or time grows.
+
+## Red teaming (Part 3)
+
+The swarm is hardened against adversarial input at five **defense points**. Each
+is a place an attacker acts in any multi-agent system, so the map transfers well
+beyond this repo.
+
+| Point | Risk | Defense in this repo |
+|-------|------|----------------------|
+| **DP1** Input boundary | Prompt injection | `shared/input_guard.quarantine` strips reserved markers; wired into `main.py` |
+| **DP2** Fan out / shared context | One injection reaches every specialist | `shared/input_guard.looks_like_injection` canary |
+| **DP3** Inter-agent channel | Forged vote blocks | `shared/vote_channel` HMAC sign / verify |
+| **DP4** Tool boundary | Tool poisoning, silent coercion | `cast_vote` validates and fails loud (`validate_specialist_vote`) |
+| **DP5** Aggregation | Consensus / tiebreaker abuse | `shared/vote_tally` deterministic extract + tally |
+
+The adversarial suite is in `evaluation/adversarial/`, one test module per
+defense point. `asr_runner.py` reports **Attack Success Rate** and CI fails when
+it rises above the `asr_threshold` in `evaluation/test_config.json`.
+
+```bash
+pytest evaluation/adversarial -v
+python evaluation/adversarial/asr_runner.py
+```
+
+Threat model and how to extend the corpus: [evaluation/adversarial/README.md](evaluation/adversarial/README.md).
 
 ## Observability
 

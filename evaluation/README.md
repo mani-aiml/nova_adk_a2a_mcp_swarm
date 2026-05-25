@@ -1,7 +1,7 @@
-# Swarm Agent Evaluation (Part 2)
+# Swarm Agent Evaluation (Parts 2-3)
 
 This directory contains the full evaluation suite for the art appraisal swarm.
-It covers three evaluation layers: unit, integration, and trace.
+It covers four evaluation layers: unit, integration, trace, and adversarial.
 
 ## Four lifecycle surfaces
 
@@ -23,6 +23,7 @@ ADK Web is for **agent execution** visibility; for **distributed OTLP** traces a
 | Unit | Per-specialist goldens + synthesis (registry-driven) | Every commit |
 | Integration | Swarm trajectory + scale-from-registry | Before release / with Docker |
 | Trace | OTEL JSONL from a live run | After compose + workload; needs `--log-path` |
+| Adversarial | Red teaming per defense point; Attack Success Rate gate | Every commit (CI) |
 
 ## Quick start
 
@@ -31,6 +32,10 @@ pip install -r requirements.txt adk pytest pyyaml
 
 # Pytest only (matches CI scope; no Docker)
 pytest evaluation/unit evaluation/integration -v
+
+# Adversarial suite (Part 3): red teaming per defense point, no Docker
+pytest evaluation/adversarial -v
+python evaluation/adversarial/asr_runner.py
 
 # Full suite: ADK eval per eval_package, pytest, integration, swarm eval, trace (if otel.log exists)
 ./evaluation/run_evals.sh
@@ -70,6 +75,10 @@ evaluation/
   trace_eval/
     trace_analyzer.py
     test_trace_quality.py
+  adversarial/                  Part 3 red teaming suite, one module per defense point
+    attacks/corpus.json         Attack corpus (data; replace with attacks for your system)
+    asr_runner.py               Attack Success Rate runner + CI gate
+    test_dp1..dp5, test_asr.py  One module per defense point + the ASR gate
   golden/
     <eval_package>/evalset.json   One dir per eval_package from agents.yaml
     swarm/trajectory_evalset.json Curated full-swarm trajectory (exception to “data only”)
@@ -104,13 +113,14 @@ Eval-runner image is built from [eval_runner/Dockerfile](../eval_runner/Dockerfi
 
 ## CI
 
-The **Evaluation CI** workflow (`.github/workflows/evaluation.yml`) runs three jobs on every push / PR to `main`:
+The **Evaluation CI** workflow (`.github/workflows/evaluation.yml`) runs four jobs on every push / PR to `main`:
 
 | Job | What it runs | Artifact |
 |-----|-------------|----------|
 | **Unit Tests** | `pytest evaluation/unit/` | `unit_tests.xml` (JUnit) |
 | **Integration Tests** | `pytest evaluation/integration/` | `integration_tests.xml` (JUnit) |
-| **Report** | `generate_report.py` (merges both JUnit XMLs) | `eval_report.html` |
+| **Adversarial Tests** | `pytest evaluation/adversarial/` + `asr_runner.py` (ASR gate) | `adversarial_tests.xml`, `adversarial_asr.json` |
+| **Report** | `generate_report.py` (merges all JUnit XMLs) | `eval_report.html` |
 
 CI does **not** run Docker, `adk eval`, or trace tests. For release gates that include ADK eval and Docker integration, run `./evaluation/run_evals.sh` locally or use the Docker eval runner.
 
